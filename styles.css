@@ -22,3 +22,20 @@ label.field{display:block;font-size:12px;font-weight:700;color:#41516b;margin-bo
  #app,#toast{display:none!important}#printArea{display:block!important;position:static!important}
  .print-head{display:flex;justify-content:space-between;border-bottom:2px solid #183865;padding-bottom:15px;margin-bottom:20px}.print-head h1{font-size:23pt;margin:0}.print-head .company{text-align:right;max-width:50%}.print-meta{margin:12px 0 18px;line-height:1.6}.print-caution{border:1px solid #e6bc6f;background:#fff5df;padding:7px 9px;font-size:9pt;margin-bottom:10px}.print-table{width:100%;border-collapse:collapse;font-size:9pt;table-layout:fixed}.print-table th{background:#dbe8f7;text-align:left;padding:9px 6px;border-bottom:1px solid #9aaabc}.print-table td{padding:8px 6px;border-bottom:1px solid #e0e4e9;word-wrap:break-word}.print-table .right{text-align:right}.print-totals{max-width:55%;margin:22px 0 0 auto;border-top:2px solid #26466e;padding:7px}.print-totals p{display:flex;justify-content:space-between;margin:8px 0}.print-totals .grand{font-size:13pt;font-weight:700;border-top:1px solid #abc;padding-top:9px}.print-notes{margin-top:24px;font-size:9pt;line-height:1.5}.print-footer{font-size:8pt;margin-top:24px;padding-top:9px;border-top:1px solid #ddd;color:#666}
 }
+
+/* Devis IA V1.1 : validation interactive des points techniques */
+.card.resolved-card{background:#f3fbf7;border-color:#cdebdc}
+.question-item{border:1px solid #f0dfbb;background:#fff;border-radius:13px;padding:12px;margin:10px 0}
+.question-item.is-resolved{border-color:#c7e7d6;background:#fafffc}
+.question-title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
+.question-title{font-size:12.5px;line-height:1.5;color:#283d59;flex:1}
+.question-state{font-size:10px;flex-shrink:0;color:#875a15;background:#fff0cb;padding:5px 8px;border-radius:99px;font-weight:750}
+.question-state.is-ok{color:#17643a;background:#e0f4e8}
+.question-entry{font-size:14px;min-height:67px!important;resize:vertical}
+.question-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.question-answer{font-size:12px;margin:7px 0 11px;border-left:3px solid #38a16b;padding-left:11px}
+.question-answer>span{color:#45745d;font-size:10px;font-weight:700}
+.question-answer p{color:#264436!important;white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0!important}
+.pending-alert{color:#88560e!important;font-weight:700;padding:8px 0}
+.resolved-note{color:#266e42!important;font-weight:650}
+@media(max-width:370px){.question-title-row{flex-wrap:wrap}}

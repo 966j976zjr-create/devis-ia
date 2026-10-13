@@ -1,4 +1,4 @@
-/* Devis IA V1 — application locale sans requête serveur ni dépendance JS externe. */
+/* Devis IA V1.1 — application locale sans requête serveur ni dépendance JS externe. */
 'use strict';
 const STORAGE_KEY='devis-ia-v1-data';
 const FAMILIES=['Vidéosurveillance','Contrôle d’accès','Intrusion','Sécurité incendie','Réseau / accessoires','Prestations'];
@@ -32,7 +32,7 @@ const num=v=>{const n=Number(String(v??'').trim().replace(/\s/g,'').replace(',',
 const fixed=(x,p=2)=>Math.round((num(x)+Number.EPSILON)*10**p)/10**p;
 const dateFr=v=>new Date(v).toLocaleDateString('fr-FR');
 const uid=()=>`D-${new Date().getFullYear()}-${String(Date.now()).slice(-8)}`;
-function emptyDraft(){return{id:uid(),created:new Date().toISOString(),title:'Nouvelle installation',client:'',description:'',lines:[],questions:[],notes:[],demo:false};}
+function emptyDraft(){return{id:uid(),created:new Date().toISOString(),title:'Nouvelle installation',client:'',description:'',lines:[],questions:[],questionAnswers:{},notes:[],demo:false};}
 function initialState(){return{catalog:DEMO.map(c=>({...c})),settings:{...DEFAULTS},draft:emptyDraft(),history:[],view:'nouveau'};}
 function loadState(){try{const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return initialState();const v=JSON.parse(raw);if(!v||!Array.isArray(v.catalog)||!v.draft)return initialState();return{catalog:v.catalog,settings:{...DEFAULTS,...v.settings},draft:v.draft,history:Array.isArray(v.history)?v.history:[],view:'nouveau'};}catch(e){return initialState();}}
 let state=loadState();let catalogFilter='';let toastTimer;
@@ -138,6 +138,26 @@ function parseNeed(description){
  p.notes.push('Analyse locale déterministe : propositions à vérifier par le chiffreur, non générées par un modèle IA.');
  return p;
 }
+// Les réponses sont enregistrées séparément des questions pour conserver la compatibilité avec les devis V1.
+function questionAnswer(d,index){
+ const raw=(d.questionAnswers||{})[String(index)];
+ return raw&&typeof raw==='object'?{answer:String(raw.answer||''),status:['validated','not-applicable'].includes(raw.status)?raw.status:'pending'}:{answer:'',status:'pending'};
+}
+function questionProgress(d){
+ const total=Array.isArray(d.questions)?d.questions.length:0;
+ let resolved=0;
+ for(let i=0;i<total;i++)if(questionAnswer(d,i).status!=='pending')resolved++;
+ return{total,resolved,pending:total-resolved};
+}
+function questionCard(q,i){
+ const a=questionAnswer(state.draft,i),resolved=a.status!=='pending';
+ return `<div class="question-item ${resolved?'is-resolved':''}">
+ <div class="question-title-row"><strong class="question-title">${i+1}. ${esc(q)}</strong><span class="question-state ${resolved?'is-ok':''}">${a.status==='validated'?'Validé':a.status==='not-applicable'?'Sans objet':'À confirmer'}</span></div>
+ ${resolved?`<div class="question-answer"><span>Réponse enregistrée</span><p>${esc(a.answer)}</p></div><button type="button" class="btn ghost inline" data-action="reopen-question" data-index="${i}">Modifier / rouvrir</button>`:
+ `<label class="field" for="question-${i}">Ta réponse ou décision technique</label><textarea id="question-${i}" class="field-control question-entry" data-question="${i}" maxlength="1000" rows="2" placeholder="Dicte ou écris une réponse précise...">${esc(a.answer)}</textarea>
+ <div class="question-actions"><button type="button" class="btn secondary inline" data-action="validate-question" data-index="${i}" ${a.answer.trim()?'':'disabled'}>Valider la réponse</button><button type="button" class="btn ghost inline" data-action="na-question" data-index="${i}" ${a.answer.trim()?'':'disabled'}>Sans objet</button></div>`}
+ </div>`;
+}
 function render(){document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===state.view);b.setAttribute('aria-current',b.dataset.tab===state.view?'page':'false');});
  byId('mainContent').innerHTML=state.view==='nouveau'?newPage():state.view==='devis'?quotePage():state.view==='catalogue'?catalogPage():settingsPage();}
 function header(tag,title,subtitle){return`<div class="eyebrow">${esc(tag)}</div><h1 class="page-title">${esc(title)}</h1><p class="subheading">${esc(subtitle)}</p>`;}
@@ -167,7 +187,7 @@ function quotePage(){const d=state.draft,c=quoteCalc();const selectOptions=state
  <div class="field-group"><label class="field" for="devisTitle">Objet du devis</label><input id="devisTitle" data-draft="title" class="field-control" value="${esc(d.title)}"></div>
  <div class="field-group"><label class="field" for="devisClient">Client / affaire</label><input id="devisClient" data-draft="client" class="field-control" value="${esc(d.client)}" placeholder="Nom facultatif"></div>
  <div class="row wrap"><button class="btn secondary inline" data-action="save-quote">Enregistrer dans l’historique</button><button class="btn ghost inline" data-action="new-quote">Nouveau brouillon</button></div></section>
- ${d.questions.length?`<section class="card amber"><h3>Questions à confirmer (${d.questions.length})</h3>${d.questions.map(q=>`<div class="question">${esc(q)}</div>`).join('')}</section>`:''}
+ ${d.questions.length?`<section class="card ${questionProgress(d).pending?'amber':'resolved-card'}"><div class="row between wrap"><h3>Points à confirmer</h3><span class="pill ${questionProgress(d).pending?'amber':'green'}">${questionProgress(d).resolved} / ${questionProgress(d).total} traités</span></div><p class="hint">Réponds à chaque question, puis valide. Si un point ne s'applique pas, explique pourquoi et choisis « Sans objet ». La réponse sera conservée dans le devis et son PDF. <b>Les réponses ne modifient pas automatiquement les articles ni les quantités</b> : vérifie les lignes de chiffrage séparément.</p>${d.questions.map(questionCard).join('')}${questionProgress(d).pending?`<p class="pending-alert">${questionProgress(d).pending} point(s) encore à confirmer avant finalisation.</p>`:'<p class="resolved-note">Tous les points ont été traités. Vérifie aussi les quantités, prix et exigences techniques.</p>'}</section>`:''}
  <section class="card"><div class="row between"><h3>Lignes du devis (${d.lines.length})</h3></div>
  ${d.lines.length?d.lines.map(lineEditor).join(''):'<p>Aucune ligne. Lance une analyse ou ajoute un article du catalogue.</p>'}
  <div class="spacer14"></div><label class="field" for="addCode">Ajouter un article du catalogue</label><select id="addCode" class="field-control">${selectOptions||'<option value="">Catalogue vide</option>'}</select>
@@ -214,9 +234,21 @@ function settingsPage(){const s=state.settings;return`${header('CONFIGURATION','
 function changeTab(tab){if(!['nouveau','devis','catalogue','reglages'].includes(tab))return;state.view=tab;render();window.scrollTo(0,0);}
 function analyze(){const text=byId('needText')?.value?.trim()||'';if(!text){toast('Décris d’abord ton besoin.');return;}
  if(state.draft.lines.length&&!confirm('Remplacer les lignes du brouillon actuel par une nouvelle analyse ?'))return;
- const a=parseNeed(text);state.draft={...state.draft,description:text,lines:a.lines,questions:a.questions,notes:a.notes};save();changeTab('devis');toast(`${a.lines.length} référence(s) proposées ; vérifie les hypothèses.`);
+ const a=parseNeed(text);state.draft={...state.draft,description:text,lines:a.lines,questions:a.questions,questionAnswers:{},notes:a.notes};save();changeTab('devis');toast(`${a.lines.length} référence(s) proposées ; vérifie les hypothèses.`);
 }
 function addLine(){const code=byId('addCode')?.value;const a=lookup(code);if(!a)return;state.draft.lines.push(lineOf(a,1,'manuel'));save();render();toast('Article ajouté.');}
+function updateQuestion(index,status){
+ const d=state.draft;
+ if(!Number.isInteger(index)||index<0||index>=d.questions.length)return;
+ const existing=questionAnswer(d,index),answer=existing.answer.trim();
+ if(status!=='pending'&&!answer){toast('Saisis une réponse avant de valider.');return;}
+ if(!d.questionAnswers)d.questionAnswers={};
+ d.questionAnswers[String(index)]={answer,status};
+ save();render();
+ // Conserver la position à proximité du point traité, sans revenir en haut de page.
+ byId(`question-${index}`)?.scrollIntoView({block:'nearest'});
+ toast(status==='validated'?'Réponse validée et enregistrée.':status==='not-applicable'?'Point classé sans objet.':'Question rouverte.');
+}
 function saveQuote(){const d=state.draft;if(!d.lines.length){toast('Ajoute au moins une ligne avant de sauvegarder.');return;}const snapshot=JSON.parse(JSON.stringify({...d,savedHT:quoteCalc().ht}));const idx=state.history.findIndex(h=>h.id===d.id);if(idx>=0)state.history[idx]=snapshot;else state.history.unshift(snapshot);state.history=state.history.slice(0,60);save();render();toast('Devis enregistré localement.');}
 function download(name,contents,mime){const blob=new Blob([contents],{type:mime});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
 function csvCell(s){const x=String(s??'');return/[;\r\n"]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x;}
@@ -255,14 +287,17 @@ function renderPrint(){const d=state.draft,c=quoteCalc();const lineRows=c.lines.
  ${d.lines.some(x=>x.demo)?'<div class="print-caution"><b>DEVIS DE DÉMONSTRATION : PRIX FICTIFS — NE PAS TRANSMETTRE COMME OFFRE COMMERCIALE</b></div>':''}
  <table class="print-table"><colgroup><col style="width:45%"><col style="width:10%"><col style="width:9%"><col style="width:18%"><col style="width:18%"></colgroup><thead><tr><th>Désignation</th><th class="right">Qté</th><th class="right">Unité</th><th class="right">PU HT</th><th class="right">Total HT</th></tr></thead><tbody>${lineRows}${labor}</tbody></table>
  <div class="print-totals"><p><span>Total HT</span><b>${money(c.ht)}</b></p><p><span>TVA (${num(state.settings.tva)} %)</span><b>${money(c.tva)}</b></p><p class="grand"><span>Total TTC</span><b>${money(c.ttc)}</b></p></div>
- ${d.questions.length?`<div class="print-notes"><b>Points à confirmer avant émission définitive :</b><ul>${d.questions.map(q=>`<li>${esc(q)}</li>`).join('')}</ul></div>`:''}
+ ${d.questions.length?`<div class="print-notes"><b>Points de validation (${questionProgress(d).resolved}/${questionProgress(d).total} traités) :</b><ul>${d.questions.map((q,i)=>{const a=questionAnswer(d,i);return `<li><b>${esc(q)}</b><span style="display:block;white-space:pre-wrap">${a.status==='pending'?'À CONFIRMER'+(a.answer.trim()?' — réponse non validée : '+esc(a.answer):''):a.status==='not-applicable'?'SANS OBJET — '+esc(a.answer):'VALIDÉ — '+esc(a.answer)}</span></li>`;}).join('')}</ul></div>`:''}
  ${d.notes.length?`<div class="print-notes"><b>Hypothèses :</b><ul>${d.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul></div>`:''}
- <div class="print-footer">Devis de travail — vérification technique et commerciale obligatoire. Généré localement par Devis IA V1.</div>`;}
+ <div class="print-footer">Devis de travail — vérification technique et commerciale obligatoire. Généré localement par Devis IA V1.1.</div>`;}
 function doAction(e){const btn=e.target.closest('[data-action]');if(!btn)return;const action=btn.dataset.action;const i=Number(btn.dataset.index);const code=btn.dataset.code;
  switch(action){
   case'example':byId('needText').value=EXAMPLE;state.draft.description=EXAMPLE;save();toast('Exemple chargé.');break;
   case'analyze':analyze();break;
   case'add-line':addLine();break;
+  case'validate-question':updateQuestion(i,'validated');break;
+  case'na-question':updateQuestion(i,'not-applicable');break;
+  case'reopen-question':updateQuestion(i,'pending');break;
   case'remove-line':state.draft.lines.splice(i,1);save();render();break;
   case'save-quote':saveQuote();break;
   case'new-quote':if(state.draft.lines.length&&!confirm('Créer un nouveau brouillon ? Le devis en cours est conservé uniquement si tu l’as enregistré.'))break;state.draft=emptyDraft();save();changeTab('nouveau');break;
@@ -275,14 +310,14 @@ function doAction(e){const btn=e.target.closest('[data-action]');if(!btn)return;
   case'upsert-article':upsertArticle();break;
   case'edit-article':editArticle(code);break;
   case'delete-article':if(confirm(`Supprimer la référence ${code} ?`)){state.catalog=state.catalog.filter(a=>a.code!==code);save();render();}break;
-  case'backup':download('DevisIA-sauvegarde-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({catalog:state.catalog,settings:state.settings,draft:state.draft,history:state.history,version:1},null,2),'application/json;charset=utf-8');toast('Sauvegarde exportée.');break;
+  case'backup':download('DevisIA-sauvegarde-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({catalog:state.catalog,settings:state.settings,draft:state.draft,history:state.history,version:'1.1'},null,2),'application/json;charset=utf-8');toast('Sauvegarde exportée.');break;
   case'copy-ai':copyString(createAIPrompt()).then(ok=>toast(ok?'Consigne IA copiée. Lance maintenant ton raccourci.':'Copie impossible, vérifie les permissions du presse-papiers.'));break;
   case'launch-ai':window.location.href='shortcuts://run-shortcut?name=Devis%20IA%20-%20Analyse&input=clipboard';break;
   case'paste-ai':if(!navigator.clipboard?.readText){toast('Colle manuellement le JSON (appui long).');break;}navigator.clipboard.readText().then(s=>{byId('aiJson').value=s;toast('Réponse collée.');}).catch(()=>toast('Autorisation de lecture refusée : colle manuellement.'));break;
-  case'import-ai':try{const v=parseAIJson(byId('aiJson').value);if(state.draft.lines.length&&!confirm('Remplacer les lignes actuelles par la proposition Apple Intelligence ?'))break;state.draft={...state.draft,description:byId('needText').value,lines:v.lines,questions:[...v.questions,'Proposition IA à vérifier : références, quantités, implantations, prix et conformité.'],notes:[...v.notes,'Analyse issue de Raccourcis Apple Intelligence ; validation humaine obligatoire.']};save();changeTab('devis');toast('Réponse IA importée.');}catch(err){toast('Import impossible : '+err.message);}break;
+  case'import-ai':try{const v=parseAIJson(byId('aiJson').value);if(state.draft.lines.length&&!confirm('Remplacer les lignes actuelles par la proposition Apple Intelligence ?'))break;state.draft={...state.draft,description:byId('needText').value,lines:v.lines,questions:[...v.questions,'Proposition IA à vérifier : références, quantités, implantations, prix et conformité.'],questionAnswers:{},notes:[...v.notes,'Analyse issue de Raccourcis Apple Intelligence ; validation humaine obligatoire.']};save();changeTab('devis');toast('Réponse IA importée.');}catch(err){toast('Import impossible : '+err.message);}break;
  }
 }
-function onInput(e){const t=e.target;if(t.id==='needText'){state.draft.description=t.value;save();}else if(t.id==='catalogFilter'){catalogFilter=t.value;byId('catalogList').innerHTML=catalogList();}else if(t.dataset.draft){state.draft[t.dataset.draft]=t.value;save();}}
+function onInput(e){const t=e.target;if(t.id==='needText'){state.draft.description=t.value;save();}else if(t.dataset.question!==undefined){const idx=Number(t.dataset.question);if(Number.isInteger(idx)&&idx>=0&&idx<state.draft.questions.length){if(!state.draft.questionAnswers)state.draft.questionAnswers={};state.draft.questionAnswers[String(idx)]={answer:t.value,status:'pending'};save();const card=t.closest('.question-item');card?.querySelectorAll('[data-action="validate-question"],[data-action="na-question"]').forEach(b=>b.disabled=!t.value.trim());}}else if(t.id==='catalogFilter'){catalogFilter=t.value;byId('catalogList').innerHTML=catalogList();}else if(t.dataset.draft){state.draft[t.dataset.draft]=t.value;save();}}
 function onChange(e){const t=e.target;
  if(t.dataset.line!==undefined){const l=state.draft.lines[Number(t.dataset.line)];if(!l)return;const prop=t.dataset.property,v=num(t.value);if(!validVal(v)) {toast('Valeur hors limites.');render();return;}l[prop]=v;save();render();}
  if(t.dataset.setting){const k=t.dataset.setting;if(k==='automo')state.settings[k]=t.checked;else if(k==='entreprise')state.settings[k]=t.value;else {const value=num(t.value);if(!validVal(value,k==='tva'?100:100000)){toast('Valeur invalide.');render();return;}state.settings[k]=value;}save();if(k==='automo')render();}
