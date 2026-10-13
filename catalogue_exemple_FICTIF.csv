@@ -1,0 +1,5 @@
+code;famille;designation;unite;prix_achat_ht;prix_vente_ht;temps_pose_h
+DEMO-CAM-GEN;Vidéosurveillance;Caméra IP — type à préciser;u;180;305;2
+DEMO-CAM-EXT;Vidéosurveillance;Caméra IP extérieure;u;245;415;2.5
+DEMO-NVR;Vidéosurveillance;Enregistreur vidéo IP — configuration à valider;u;760;1100;1.5
+DEMO-CABLE;Réseau / accessoires;Câble cuivre réseau; m;1.4;3.2;0.04
